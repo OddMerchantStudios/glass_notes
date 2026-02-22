@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Notes</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg:        #faf8f5;
+    --surface:   #fffefb;
+    --surface2:  #f2efe9;
+    --border:    #e8e2d9;
+    --border2:   #d4cdc4;
+    --text:      #1a1a1a;
+    --text2:     #666666;
+    --text3:     #aaaaaa;
+    --green:     #5daa8f;
+    --green-dim: #5daa8f18;
+    --red:       #e02020;
+    --tally:     #2b7de9;
+    --radius:    13px;
+    --gap:       10px;
+    --col-width: 200px;
+
+    --note-bg:    #fdfcff; --note-bdr:  #dde7f5; --note-bdr-h:  #8ab5e8;
+    --todo-bg:    #fffdf6; --todo-bdr:  #f2e4c4; --todo-bdr-h:  #d9b060;
+    --tally-bg:   #f5f8fe; --tally-bdr: #cdddf5; --tally-bdr-h: #78a8e8;
+    --done-bg:    #f4faf7; --done-bdr:  #a8d8be; --done-bdr-h:  #5daa8f;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%; width: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+    overflow: hidden;
+  }
+
+
+  /* ── App shell ───────────────────────────────────────────────────────── */
+  #app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  /* ── Floating corner buttons ─────────────────────────────────────────── */
+  .bar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    pointer-events: none;   /* let clicks through to board */
+    z-index: 100;
+    padding: 10px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+
+  .btn-close {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 1px solid var(--border2);
+    background: transparent;
+    color: var(--text3);
+    font-size: 10px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: border-color .15s, color .15s, background .15s;
+    position: relative; z-index: 10;
+    pointer-events: all;
+    line-height: 1;
+  }
+  .btn-close:hover { border-color: var(--red); color: var(--red); background: #fff0f0; }
+
+  .btn-add {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 1px solid var(--border2);
+    background: transparent;
+    color: var(--text3);
+    font-size: 13px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: border-color .15s, color .15s, background .15s;
+    position: relative; z-index: 10;
+    pointer-events: all;
+  }
+  .btn-add:hover { border-color: var(--green); color: var(--green); background: var(--green-dim); }
+
+  /* ── Board ───────────────────────────────────────────────────────────── */
+  .board {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 44px 16px 32px;
+    background:
+      radial-gradient(circle at 1px 1px, rgba(100,80,50,.09) 1px, transparent 0);
+    background-size: 20px 20px;
+  }
+  .board::-webkit-scrollbar { width: 4px; }
+  .board::-webkit-scrollbar-track { background: transparent; }
+  .board::-webkit-scrollbar-thumb { background: #cccccc; border-radius: 2px; }
+
+  .grid {
+    columns: var(--col-width) auto;
+    column-gap: var(--gap);
+  }
+
+  /* ── Tiles ───────────────────────────────────────────────────────────── */
+  .tile {
+    display: inline-block; width: 100%;
+    margin-bottom: var(--gap); break-inside: avoid;
+    border-radius: var(--radius);
+    padding: 11px 12px 22px;
+    cursor: pointer; border: 1px solid;
+    /* Glass pop: layered shadow + subtle top-edge highlight */
+    box-shadow:
+      0 1px 2px rgba(0,0,0,.04),
+      0 3px 8px rgba(0,0,0,.07),
+      0 8px 20px rgba(0,0,0,.06),
+      inset 0 1px 0 rgba(255,255,255,.9);
+    transition: border-color .18s, background .18s, transform .15s, box-shadow .18s;
+    vertical-align: top;
+  }
+  .tile:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 2px 4px rgba(0,0,0,.05),
+      0 6px 16px rgba(0,0,0,.10),
+      0 16px 32px rgba(0,0,0,.08),
+      inset 0 1px 0 rgba(255,255,255,.95);
+  }
+  .tile:active { transform: translateY(0) scale(.988); box-shadow: 0 1px 3px rgba(0,0,0,.08), inset 0 1px 0 rgba(255,255,255,.8); }
+
+  .tile-note  { background: var(--note-bg);  border-color: var(--note-bdr); }
+  .tile-note:hover  { border-color: var(--note-bdr-h);  background: #f4f8fe; }
+  .tile-todo  { background: var(--todo-bg);  border-color: var(--todo-bdr); }
+  .tile-todo:hover  { border-color: var(--todo-bdr-h);  background: #fffbf3; }
+  .tile-tally { background: var(--tally-bg); border-color: var(--tally-bdr); }
+  .tile-tally:hover { border-color: var(--tally-bdr-h); background: #f0f6ff; }
+  .tile-done  { background: var(--done-bg);  border-color: var(--done-bdr); }
+  .tile-done:hover  { border-color: var(--done-bdr-h);  background: #edfaef; }
+  .tile-done .tile-title { color: var(--green); }
+  .tile-done .check { display: block; }
+
+  .tile-header { display: flex; align-items: flex-start; gap: 6px; margin-bottom: 8px; }
+
+  .tile-title {
+    font-size: 13px; font-weight: 500;
+    color: var(--text); line-height: 1.45;
+    word-break: break-word; flex: 1;
+    outline: none; border-radius: 4px; min-width: 0; cursor: text;
+  }
+  .tile-title:focus {
+    background: rgba(0,0,0,.04);
+    box-shadow: 0 0 0 1px var(--border2);
+    padding: 1px 4px; margin: -1px -4px;
+  }
+
+  .check { display: none; color: var(--green); font-size: 12px; flex-shrink: 0; margin-top: 3px; margin-left: 2px; }
+
+  /* Invisible bottom click buffer — ensures tile action fires even if title is clicked */
+  .tile-click-zone {
+    height: 10px;
+    margin: 4px -12px -16px;  /* bleed to tile edges */
+    cursor: pointer;
+  }
+
+  .tally-row {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; color: var(--tally);
+    letter-spacing: .04em; line-height: 1.6; word-break: break-all;
+    background: rgba(43,125,233,.07);
+    border-radius: 6px; padding: 4px 8px; margin-top: 7px;
+  }
+
+  /* ── Context menu ────────────────────────────────────────────────────── */
+  .ctx {
+    position: fixed; background: #ffffff;
+    border: 1px solid var(--border2); border-radius: 10px;
+    padding: 5px; min-width: 160px;
+    box-shadow: 0 8px 32px #00000088; z-index: 1000;
+    animation: ctx-in .1s ease;
+  }
+  @keyframes ctx-in {
+    from { opacity: 0; transform: scale(.95) translateY(-4px); }
+    to   { opacity: 1; transform: scale(1)   translateY(0); }
+  }
+  .ctx-item {
+    padding: 8px 12px; font-size: 12px; color: var(--text2);
+    border-radius: 6px; cursor: pointer;
+    display: flex; align-items: center; gap: 8px;
+    transition: background .1s, color .1s;
+  }
+  .ctx-item:hover { background: var(--surface2); color: var(--text); }
+  .ctx-item.danger:hover { background: #fff0f0; color: var(--red); }
+  .ctx-sep { height: 1px; background: var(--border); margin: 4px 0; }
+
+  /* ── Modal ───────────────────────────────────────────────────────────── */
+  .backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.35);
+    z-index: 500; display: flex; align-items: center; justify-content: center;
+    animation: fade-in .12s ease;
+  }
+  @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+  .dialog {
+    background: #ffffff; border: 1px solid var(--border2);
+    border-radius: 18px; padding: 26px; width: 340px;
+    box-shadow: 0 24px 64px #000000bb;
+    animation: dialog-in .18s cubic-bezier(.34,1.56,.64,1);
+  }
+  @keyframes dialog-in {
+    from { opacity: 0; transform: scale(.92) translateY(8px); }
+    to   { opacity: 1; transform: scale(1)   translateY(0); }
+  }
+  .dialog h2 { font-size: 15px; font-weight: 600; margin-bottom: 18px; }
+
+  .type-tabs { display: flex; gap: 6px; margin-bottom: 18px; }
+  .type-tab {
+    flex: 1; padding: 7px; border-radius: 8px;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--text2); font-family: 'DM Sans', sans-serif;
+    font-size: 12px; font-weight: 500; cursor: pointer; text-align: center; transition: all .15s;
+  }
+  .type-tab:hover { border-color: var(--border2); color: var(--text); }
+  .type-tab.active[data-type="note"]  { border-color: var(--note-bdr-h);  color: #7eb8f7; background: rgba(126,184,247,.08); }
+  .type-tab.active[data-type="todo"]  { border-color: var(--todo-bdr-h);  color: #f7b84e; background: rgba(247,184,78,.08);  }
+  .type-tab.active[data-type="tally"] { border-color: var(--tally-bdr-h); color: var(--tally); background: rgba(126,184,247,.08); }
+
+  .field-label { font-size: 10px; color: var(--text3); margin-bottom: 5px; letter-spacing: .07em; text-transform: uppercase; }
+  .field-input {
+    width: 100%; background: var(--bg);
+    border: 1px solid var(--border); border-radius: 9px;
+    color: var(--text); font-family: 'DM Sans', sans-serif;
+    font-size: 14px; padding: 9px 11px;
+    outline: none; transition: border-color .15s; resize: none;
+  }
+  .field-input:focus { border-color: var(--green); }
+  .field-input::placeholder { color: var(--text3); }
+  .field-body { margin-top: 13px; }
+
+  .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+  .btn {
+    padding: 8px 16px; border-radius: 9px;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--text2); font-family: 'DM Sans', sans-serif;
+    font-size: 13px; font-weight: 500; cursor: pointer; transition: all .15s;
+  }
+  .btn:hover { background: var(--surface2); color: var(--text); }
+  .btn-primary { background: var(--green); border-color: var(--green); color: #000; font-weight: 600; }
+  .btn-primary:hover { background: #4e9880; border-color: #4e9880; }
+  .edit-dialog { width: 420px; }
+
+  /* ── Canvas pulse ────────────────────────────────────────────────────── */
+  .board { isolation: isolate; }   /* stacking context so z-index:-1 stays inside board */
+  #pulseOverlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    z-index: -1;   /* behind tiles/grid, but within board stacking context */
+    opacity: 0;
+  }
+  #pulseOverlay.pulse {
+    animation: canvas-pulse .7s ease-out forwards;
+  }
+  @keyframes canvas-pulse {
+    0%   { opacity: 0; }
+    15%  { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
+  /* ── Empty state ─────────────────────────────────────────────────────── */
+  .empty {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 8px; color: var(--text3); pointer-events: none;
+  }
+  .empty-icon { font-size: 26px; opacity: .3; }
+  .empty-text { font-size: 12px; }
+</style>
+</head>
+<body>
+
+
+<div id="app">
+  <div class="bar">
+    <button class="btn-close" id="btnClose" title="Close">✕</button>
+    <button class="btn-add"   id="btnAdd"   title="New note (N)">+</button>
+  </div>
+  <div class="board" id="board">
+    <div id="pulseOverlay"></div>
+    <div class="grid" id="grid"></div>
+    <div class="empty" id="empty">
+      <div class="empty-icon">✦</div>
+      <div class="empty-text">Right-click to add a note</div>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- Templates -->
+<template id="tplCreate">
+  <div class="backdrop" id="createBackdrop">
+    <div class="dialog">
+      <h2>New note</h2>
+      <div class="type-tabs">
+        <button class="type-tab active" data-type="note">Note</button>
+        <button class="type-tab" data-type="todo">Todo</button>
+        <button class="type-tab" data-type="tally">Tally</button>
+      </div>
+      <div class="field-label">Title</div>
+      <input class="field-input" id="createTitle" type="text" placeholder="What's on your mind?" autocomplete="off"/>
+      <div id="bodyField">
+        <div class="field-label" style="margin-top:13px">Content <span style="opacity:.4">(optional)</span></div>
+        <textarea class="field-input" id="createBody" rows="4" placeholder="Add details..."></textarea>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn" id="createCancel">Cancel</button>
+        <button class="btn btn-primary" id="createSubmit">Create</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<template id="tplEdit">
+  <div class="backdrop" id="editBackdrop">
+    <div class="dialog edit-dialog">
+      <h2 id="editTitle"></h2>
+      <textarea class="field-input" id="editBody" rows="8" placeholder="Add details..."></textarea>
+      <div class="dialog-actions">
+        <button class="btn btn-primary" id="editSave">Done</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<template id="tplCtx">
+  <div class="ctx" id="ctxMenu"></div>
+</template>
+
+<script>
+let data = { notes: [] };
+let activeType = "note";
+
+const $ = id => document.getElementById(id);
+const uid = () => Date.now() + Math.floor(Math.random() * 999);
+
+function pulse(color) {
+  const overlay = $("pulseOverlay");
+  overlay.style.background = color;
+  overlay.classList.remove("pulse");
+  // Force reflow so re-triggering works
+  void overlay.offsetWidth;
+  overlay.classList.add("pulse");
+}
+
+function tallyStr(n) {
+  if (!n) return "";
+  const parts = [];
+  for (let i = 0; i < Math.floor(n / 5); i++) parts.push("|||||");
+  const rem = n % 5; if (rem) parts.push("|".repeat(rem));
+  return parts.join(" ");
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+// ── Persistence ───────────────────────────────────────────────────────────────
+async function loadData() {
+  try {
+    const r = await window.pywebview.api.load();
+    if (r && r.notes) data = r;
+  } catch {
+    try { const r = localStorage.getItem("nd"); if (r) data = JSON.parse(r); } catch {}
+  }
+  render();
+}
+async function saveData() {
+  try { await window.pywebview.api.save(data); }
+  catch { try { localStorage.setItem("nd", JSON.stringify(data)); } catch {} }
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function render() {
+  const grid = $("grid"), empty = $("empty");
+  grid.innerHTML = "";
+  if (!data.notes.length) { empty.style.display = "flex"; return; }
+  empty.style.display = "none";
+
+  data.notes.forEach(n => {
+    const cls = n.type === "todo" && n.done ? "tile tile-done" : `tile tile-${n.type}`;
+    const tile = document.createElement("div");
+    tile.className = cls; tile.dataset.id = n.id;
+    tile.innerHTML = `
+      <div class="tile-header">
+        <div class="tile-title" contenteditable="true" spellcheck="false">${escHtml(n.title)}</div>
+        <div class="check">✓</div>
+      </div>
+      ${n.type === "tally" && n.tallies > 0 ? `<div class="tally-row">${tallyStr(n.tallies)}</div>` : ""}
+      <div class="tile-click-zone"></div>
+    `;
+    const titleEl = tile.querySelector(".tile-title");
+
+    titleEl.addEventListener("keydown", e => {
+      if (e.key === "Enter")  { e.preventDefault(); titleEl.blur(); }
+      if (e.key === "Escape") { titleEl.textContent = n.title; titleEl.blur(); }
+    });
+    titleEl.addEventListener("blur", () => {
+      const v = titleEl.textContent.trim();
+      if (v && v !== n.title) { n.title = v; saveData(); }
+      else if (!v) titleEl.textContent = n.title;
+    });
+
+    // Clicking title enters edit — stop propagation so tile action doesn't fire
+    titleEl.addEventListener("click", e => e.stopPropagation());
+    titleEl.addEventListener("mousedown", e => e.stopPropagation());
+
+    // Clicking the non-title area of the tile fires the action
+    tile.addEventListener("click", e => {
+      if (titleEl.contains(e.target)) return;
+      onTileClick(e, n);
+    });
+    tile.addEventListener("contextmenu", e => { e.preventDefault(); onTileCtx(e, n); });
+    grid.appendChild(tile);
+  });
+}
+
+// ── Tile click ────────────────────────────────────────────────────────────────
+function onTileClick(e, n) {
+  const r = e.currentTarget.getBoundingClientRect();
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  if (n.type === "todo") {
+    n.done = !n.done; render(); saveData();
+    if (n.done) pulse("rgba(93,170,143,.28)");
+  } else if (n.type === "tally") {
+    n.tallies = (n.tallies || 0) + 1; render(); saveData();
+    pulse("rgba(43,125,233,.18)");
+  } else {
+    openEditDialog(n);
+  }
+}
+
+// ── Context menu ──────────────────────────────────────────────────────────────
+let activeCtx = null;
+
+function showCtxMenu(x, y, items) {
+  closeCtx();
+  const menu = $("tplCtx").content.cloneNode(true).querySelector(".ctx");
+  items.forEach(item => {
+    if (item.sep) { const s = document.createElement("div"); s.className = "ctx-sep"; menu.appendChild(s); return; }
+    const el = document.createElement("div");
+    el.className = "ctx-item" + (item.danger ? " danger" : "");
+    el.innerHTML = `<span style="opacity:.5">${item.icon}</span>${escHtml(item.label)}`;
+    el.addEventListener("mousedown", e => { e.preventDefault(); closeCtx(); item.action(); });
+    menu.appendChild(el);
+  });
+  document.body.appendChild(menu);
+  activeCtx = menu;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  let left = x, top = y;
+  if (left + 175 > vw) left = vw - 180;
+  if (top + menu.offsetHeight + 10 > vh) top = vh - menu.offsetHeight - 10;
+  menu.style.left = left + "px"; menu.style.top = top + "px";
+  setTimeout(() => document.addEventListener("click", closeCtx, { once: true }), 10);
+}
+
+function closeCtx() { if (activeCtx) { activeCtx.remove(); activeCtx = null; } }
+
+function onTileCtx(e, n) {
+  const items = [];
+  if (n.type === "tally" && n.tallies > 0) {
+    items.push({ label: `Undo tally (${n.tallies})`, icon: "↩",
+      action: () => { n.tallies--; render(); saveData(); } });
+    items.push({ sep: true });
+  }
+  if (n.type === "todo" && n.done) {
+    items.push({ label: "Mark undone", icon: "↺",
+      action: () => { n.done = false; render(); saveData(); } });
+    items.push({ sep: true });
+  }
+  if (n.type === "note") {
+    items.push({ label: "Edit content", icon: "✏", action: () => openEditDialog(n) });
+    items.push({ sep: true });
+  }
+  items.push({ label: "Delete", icon: "✕", danger: true,
+    action: () => { data.notes = data.notes.filter(x => x.id !== n.id); render(); saveData(); } });
+  showCtxMenu(e.clientX, e.clientY, items);
+}
+
+$("board").addEventListener("mousedown", e => {
+  // Clicking empty canvas blurs any focused contenteditable
+  if (!e.target.closest(".tile")) {
+    const active = document.activeElement;
+    if (active && active.getAttribute("contenteditable") === "true") {
+      active.blur();
+    }
+  }
+});
+
+$("board").addEventListener("contextmenu", e => {
+  if (e.target.closest(".tile")) return;
+  e.preventDefault();
+  openCreateDialog();
+});
+
+
+// ── Create dialog ─────────────────────────────────────────────────────────────
+function openCreateDialog() {
+  closeCtx();
+  document.body.appendChild($("tplCreate").content.cloneNode(true));
+  activeType = "note";
+  const backdrop = $("createBackdrop");
+  const titleEl  = $("createTitle");
+  const bodyEl   = $("createBody");
+  const bodyField = $("bodyField");
+
+  backdrop.querySelectorAll(".type-tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+      activeType = tab.dataset.type;
+      backdrop.querySelectorAll(".type-tab").forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+      bodyField.style.display = activeType === "note" ? "" : "none";
+    });
+  });
+
+  titleEl.focus();
+  const close = () => backdrop.remove();
+  $("createCancel").addEventListener("click", close);
+  $("createSubmit").addEventListener("click", () => doCreate(titleEl, bodyEl, close));
+  backdrop.addEventListener("click", e => { if (e.target === backdrop) close(); });
+  backdrop.addEventListener("keydown", e => {
+    if (e.key === "Escape") close();
+    if (e.key === "Enter" && e.target !== bodyEl) { e.preventDefault(); doCreate(titleEl, bodyEl, close); }
+  });
+}
+
+function doCreate(titleEl, bodyEl, close) {
+  const title = titleEl.value.trim();
+  if (!title) { titleEl.focus(); return; }
+  const body = activeType === "note" ? bodyEl.value.trim() : "";
+  data.notes.push({ id: uid(), type: activeType, title, body, done: false, tallies: 0 });
+  render(); saveData(); close();
+}
+
+// ── Edit dialog ───────────────────────────────────────────────────────────────
+function openEditDialog(n) {
+  closeCtx();
+  document.body.appendChild($("tplEdit").content.cloneNode(true));
+  const backdrop = $("editBackdrop");
+  $("editTitle").textContent = n.title;
+  const bodyEl = $("editBody");
+  bodyEl.value = n.body || "";
+  bodyEl.focus();
+  const save = () => { n.body = bodyEl.value.trim(); render(); saveData(); backdrop.remove(); };
+  $("editSave").addEventListener("click", save);
+  backdrop.addEventListener("click", e => { if (e.target === backdrop) save(); });
+  backdrop.addEventListener("keydown", e => { if (e.key === "Escape") save(); });
+}
+
+// ── Buttons & keyboard ────────────────────────────────────────────────────────
+$("btnClose").addEventListener("click", async () => {
+  try {
+    await window.pywebview.api.save_size(window.outerWidth, window.outerHeight);
+    window.pywebview.api.close_window();
+  } catch { window.close(); }
+});
+
+$("btnAdd").addEventListener("click", openCreateDialog);
+
+document.addEventListener("keydown", e => {
+  if (document.querySelector(".backdrop")) return;
+  if (e.target.getAttribute("contenteditable") === "true") return;
+  if (e.key === "n" || e.key === "N") openCreateDialog();
+});
+
+
+// ── Drag canvas to move window ────────────────────────────────────────────────
+{
+  let dragging = false;
+  let cursorStartX = 0, cursorStartY = 0;
+  let winStartX = 0, winStartY = 0;
+
+  $("board").addEventListener("mousedown", e => {
+    if (e.button !== 0) return;
+    if (e.target.closest(".tile") || e.target.closest(".bar")) return;
+    dragging     = true;
+    cursorStartX = e.screenX;
+    cursorStartY = e.screenY;
+    winStartX    = window.screenX;
+    winStartY    = window.screenY;
+    e.preventDefault();
+  });
+
+  document.addEventListener("mousemove", e => {
+    if (!dragging) return;
+    const nx = winStartX + (e.screenX - cursorStartX);
+    const ny = winStartY + (e.screenY - cursorStartY);
+    try { window.pywebview.api.move_to(nx, ny); } catch {}
+  });
+
+  document.addEventListener("mouseup", () => { dragging = false; });
+}
+// ── Boot ──────────────────────────────────────────────────────────────────────
+window.addEventListener("pywebviewready", () => {
+  window._loaded = true;
+  loadData();
+});
+setTimeout(() => { if (!window._loaded) { window._loaded = true; loadData(); } }, 400);
+</script>
+</body>
+</html>
